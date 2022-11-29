@@ -1,6 +1,9 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.models import User, auth
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+
+from .models import Profile, Post, LikePost, FollowersCount
 
 
 # 登录
@@ -47,8 +50,15 @@ def signup(request):
                 user = User.objects.create_user(username=username, email=email, password=password)
                 user.save()
 
-                messages.info(request, '注册成功')
-                return redirect('signup')
+                # 登录
+                user_login = auth.authenticate(username=username, password=password)
+                auth.login(request, user_login)
+                # 设置默认的个人信息
+                user_model = User.objects.get(username=username)
+                new_profile = Profile.objects.create(user=user_model, id_user=user_model.id)
+                new_profile.save()
+                # 跳转到设置个人信息界面
+                return redirect('settings')
         # 如果密码不等，提示
         else:
             messages.info(request, 'Password Not Matching')
@@ -56,3 +66,21 @@ def signup(request):
     # 如果请求不是post，保持在注册界面
     else:
         return render(request, 'signup.html')
+
+
+@login_required(login_url='signin')
+def settings(request):
+    user_profile = Profile.objects.get(user=request.user)
+    if request.method == 'POST':
+        if not request.FILES.get('image'):
+            user_profile.bio = request.POST['bio']
+            user_profile.location = request.POST['location']
+            user_profile.save()
+
+        if request.FILES.get('image'):
+            user_profile.profileimg = request.FILES.get('image')
+            user_profile.bio = request.POST['bio']
+            user_profile.location = request.POST['location']
+            user_profile.save()
+        return redirect('settings')
+    return render(request, 'setting.html', {'user_profile': user_profile})
