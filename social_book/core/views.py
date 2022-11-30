@@ -2,8 +2,63 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.models import User, auth
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from itertools import chain
+import random
 
 from .models import Profile, Post, LikePost, FollowersCount
+
+
+@login_required(login_url='signin')
+def index(request):
+    # 获取当前活跃用户的基本信息
+    user_object = User.objects.get(username=request.user.username)
+    user_profile = Profile.objects.get(user=user_object)
+
+    user_following_list = []
+    # 筛选出该用户的正在关注的人
+    user_following = FollowersCount.objects.filter(follower=request.user.username)
+    for users in user_following:
+        user_following_list.append(users.user)
+    # 筛选出所有正在关注的人的所有帖子
+    post = []
+    for usernames in user_following_list:
+        feed_lists = Post.objects.filter(user=usernames)
+        post.append(feed_lists)
+
+    post_list = list(chain(*post))
+
+    # 筛选出所有的可以关注的人
+    # #筛选出所有人
+    all_users = User.objects.all()
+
+    # #筛选出所有正在关注的人
+    user_following_all = []
+    for user in user_following:
+        user_list = User.objects.get(username=user.user)
+        user_following_all.append(user_list)
+    # #除掉已经关注的人
+    new_suggestions_list = [x for x in list(all_users) if (x not in list(user_following_all))]
+    # #除掉自己
+    current_user = User.objects.filter(username=request.user.username)
+    final_suggestions_list = [x for x in list(new_suggestions_list) if (x not in list(current_user))]
+
+    # 打乱顺序
+    random.shuffle(final_suggestions_list)
+
+    # 获取最终列表用户的个人信息
+    # #获取id
+    username_profile = []
+    username_profile_list = []
+    for users in final_suggestions_list:
+        username_profile.append(users.id)
+    # #获取信息
+    for ids in username_profile:
+        profile_lists = Profile.objects.filter(id_user=ids)
+        username_profile_list.append(profile_lists)
+
+    suggestions_username_profile_list = list(chain(*username_profile_list))
+    return render(request, 'index.html', {'user_profile': user_profile, 'posts': post_list,
+                                          'suggestions_username_profile_list': suggestions_username_profile_list[:4]})
 
 
 # 登录
@@ -16,8 +71,10 @@ def signin(request):
         user = auth.authenticate(username=username, password=password)
         # 如果用户存在
         if user is not None:
-            messages.info(request, '登录成功')
-            return redirect('signin')
+            # messages.info(request, '登录成功')
+            # return redirect('signin')
+            auth.login(request, user)
+            return redirect('/')
         # 如果用户不存在
         else:
             messages.info(request, '登录失败')
@@ -84,3 +141,9 @@ def settings(request):
             user_profile.save()
         return redirect('settings')
     return render(request, 'setting.html', {'user_profile': user_profile})
+
+
+@login_required(login_url='signin')
+def logout(request):
+    auth.logout(request)
+    return redirect('signin')
