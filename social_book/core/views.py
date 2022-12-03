@@ -144,6 +144,129 @@ def settings(request):
 
 
 @login_required(login_url='signin')
+def search(request):
+    user_object = User.objects.get(username=request.user.username)
+    user_profile = Profile.objects.get(user=user_object)
+
+    if request.method == 'POST':
+        username = request.POST['username']
+        # 模糊查询 忽略大小写 icontains
+        username_object = User.objects.filter(username__icontains=username)
+
+        username_profile = []
+        # 搜索到的人的基本信息列表
+        username_profile_list = []
+        for users in username_object:
+            username_profile.append(users.id)
+
+        for ids in username_profile:
+            profile_lists = Profile.objects.filter(id_user=ids)
+            username_profile_list.append(profile_lists)
+
+        username_profile_list = list(chain(*username_profile_list))
+    return render(request, 'search.html',
+                  {'user_profile': user_profile, 'username_profile_list': username_profile_list})
+
+
+@login_required(login_url='signin')
+def upload(request):
+    if request.method == 'POST':
+        user = request.user.username
+        image = request.FILES.get('image_upload')
+        caption = request.POST['caption']
+
+        new_post = Post.objects.create(user=user, image=image, caption=caption)
+        new_post.save()
+
+        return redirect('/')
+    else:
+        return redirect('/')
+
+
+@login_required(login_url='signin')
 def logout(request):
     auth.logout(request)
     return redirect('signin')
+
+
+@login_required(login_url='signin')
+def profile(request, pk):
+    # 用户对象
+    user_object = User.objects.get(username=pk)
+    # 用户基本信息
+    user_profile = Profile.objects.get(user=user_object)
+    # 用户帖子
+    user_posts = Post.objects.filter(user=pk)
+    # 用户帖子数
+    user_post_length = len(user_posts)
+
+    # 当前用户
+    follower = request.user.username
+    # 查询的用户
+    user = pk
+    # 如果有查到的，说明已经关注过，只能进行取消关注操作
+    if FollowersCount.objects.filter(follower=follower, user=user).first():
+        button_text = 'Unfollow'
+    # 反之同理
+    else:
+        button_text = 'Follow'
+
+    # 查询查询的用户的关注者，跟随者
+    user_followers = len(FollowersCount.objects.filter(user=pk))
+    user_following = len(FollowersCount.objects.filter(follower=pk))
+
+    context = {
+        'user_object': user_object,
+        'user_profile': user_profile,
+        'user_posts': user_posts,
+        'user_post_length': user_post_length,
+        'button_text': button_text,
+        'user_followers': user_followers,
+        'user_following': user_following,
+    }
+    return render(request, 'profile.html', context)
+
+
+@login_required(login_url='signin')
+def follow(request):
+    if request.method == 'POST':
+        # 操作者，当前用户
+        follower = request.POST['follower']
+        # 查看的人
+        user = request.POST['user']
+
+        # 删除一条数据
+        if FollowersCount.objects.filter(follower=follower, user=user).first():
+            delete_follower = FollowersCount.objects.get(follower=follower, user=user)
+            delete_follower.delete()
+            return redirect('/profile/' + user)
+        # 新增一条数据
+        else:
+            new_follower = FollowersCount.objects.create(follower=follower, user=user)
+            new_follower.save()
+            return redirect('/profile/' + user)
+    else:
+        return redirect('/')
+
+
+@login_required(login_url='signin')
+def like_post(request):
+    username = request.user.username
+    post_id = request.GET.get('post_id')
+
+    post = Post.objects.get(id=post_id)
+
+    like_filter = LikePost.objects.filter(post_id=post_id, username=username).first()
+    # 被这个用户喜欢 +1
+    if not like_filter:
+        new_like = LikePost.objects.create(post_id=post_id, username=username)
+        new_like.save()
+        post.no_of_likes = post.no_of_likes + 1
+        post.save()
+        return redirect('/')
+    # 没有被这个用户喜欢 -1
+    else:
+        like_filter.delete()
+        post.no_of_likes = post.no_of_likes - 1
+        post.save()
+        return redirect('/')
