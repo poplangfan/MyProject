@@ -27,20 +27,23 @@ def get_file_list(suffix, path):
     return input_template_all, input_template_all_path
 
 
+st.set_page_config(layout="wide")
 st.title('数据分析工具')
-input_folder = st.sidebar.text_input("输入数据所在的目录:(默认为脚本所在目录)，可输入新的路径回车更新",
-                                     value=os.path.abspath('.'), key=None)
-path = input_folder
+# input_folder = st.sidebar.text_input("输入数据所在的目录:(默认为脚本所在目录)，可输入新的路径回车更新",
+#                                      value=os.path.abspath('.'), key=None)
+# path = input_folder
 # todo 待优化。拓展其它格式的数据
-_, file_list_xlsx = get_file_list(".xlsx", path)
-file_list = file_list_xlsx
+file = st.sidebar.file_uploader(".csv")
+# _, file_list_xlsx = get_file_list(".csv", path)
+# file_list = file_list_xlsx
 # 如果目标文件存在
-if file_list:
-    select_file = st.sidebar.selectbox(
-        '在当前目录下选择需要加载的文件:',
-        file_list
-    )
-    st.write('You selected:', select_file)
+if file:
+# if file_list:
+#     select_file = st.sidebar.selectbox(
+#         '在当前目录下选择需要加载的文件:',
+#         file_list
+#     )
+#     st.write('You selected:', select_file)
 
     # 提取数据  st.cache_data的作用是当您使用 Streamlit 的缓存注释标记函数时，它会告诉 Streamlit 每当调用该函数时，它应该检查三件事：
     #
@@ -52,10 +55,10 @@ if file_list:
     # 然后，下次调用该函数时，如果这三个值没有更改，Streamlit 知道它可以完全跳过执行该函数。相反，它只是从本地缓存中读取输出并将其传递给调用者。
     @st.cache_data
     def load_data(path):
-        df_ = pd.read_excel(path)
+        df_ = pd.read_csv(path)
         df_.columns = df_.columns.str.lower()
         return df_
-    df = load_data(select_file)
+    df = load_data(file)
     col_list = df.columns
     # 将DF数据转为列表
     col_list = col_list.to_list()
@@ -73,4 +76,4 @@ if file_list:
         ))
         st.plotly_chart(fig, theme="streamlit")
 else:
-    st.title('没找到合适的文件，请检查')
+    st.title('请上传待分析文件')
